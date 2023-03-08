@@ -68,6 +68,8 @@ class tank_system:
                 ret2 += (tank.a/self.A)*np.sqrt(2*self.g*tank.x1)
         except:
             pass
+        if isinstance(ret2, np.ndarray):
+            ret2 = ret2[0]
         return np.array([[ret1, ret2]], dtype=float)
 
 
