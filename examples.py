@@ -5,7 +5,20 @@ from util import rk4
 # A synthetic, linear example to test the causal structure identification
 class synthetic_example:
 
+    """
+        Linear time invariant (LTI) with Gausian Noise
+        x(t) = A^t * x(0) + \sum_{i=0}^{t-1} A^i * (B*u(t-1-i) + v(t-1-i))
+        Three state variables and three input variables
+
+        In this example:
+        x(t+1) = A * x(t) + B * u(t) + normal(0, noise_stddev)
+        Input u(t) is generated outside
+    """
+
     def __init__(self, rng):
+        """
+            @ In, rng, Random Generator
+        """
         # System dynamics
         self.A = np.array([[0.9, -0.75, 1.2], [0, 0.9, -1.1], [0, 0, 0.7]])
         self.B = np.array([[0.03, 0, 0], [0, 0.06, 0], [0.07, 0, 0.05]])
