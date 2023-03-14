@@ -7,6 +7,9 @@ import copy
 
 # Excite the system to get data for system identification
 def sys_id_data(sys, rng, T=1000):
+    """
+        Sample input 'u' and collect states x_st
+    """
     u = rng.uniform(sys.inp_bound[0, :], sys.inp_bound[1, :], (T, sys.inp_dim))
     x_st = np.zeros((len(sys.state), T))
     for idx, inp in enumerate(u):
@@ -18,6 +21,11 @@ def sys_id_data(sys, rng, T=1000):
 # Learn a GP model for the dynamical system
 class GPmodel:
     def __init__(self, sys, num_out, id_data, indep_var, T=1000, model=0):
+        """
+            sys: model
+            num_out: index for GP model
+            id_data: state data + sampled input data
+        """
         self.sys = sys
         self.indep_var = indep_var
         self.num_out = num_out
@@ -44,6 +52,7 @@ class GPmodel:
         ker.unconstrain()
         x_st = self.id_data[0]
         u = self.id_data[1]
+        # generate data and fit a GP model: x(t+1) - x(t) = GP[x(t), u(t)]
         Y = x_st[self.num_out, 1::] - x_st[self.num_out, 0:-1]
         X = np.vstack((x_st[:, 0:-1], u[:, 0:-1]))
         # Delete independent variables from input
@@ -61,6 +70,9 @@ class GPmodel:
 
 
 # Predict MMD based on the GP model
+# construct a surrogate model with non-causal assumption, use the surrogate as the predictor, compute
+#  E(MMD(non_causal)) + nu * sqrt(Var[MMD(non_causal)])
+#  similar function as cause_id_linear.get_test_statistic
 def predict_mmd(GPs, sys1, test_infl_of, test_infl_on, init_cond1,
                 inp_traj1, rng, init_cond2=0, inp_traj2=0, mont=0,
                 num_exp=0, num_var=0):
@@ -75,7 +87,7 @@ def predict_mmd(GPs, sys1, test_infl_of, test_infl_on, init_cond1,
                     + len(sys1.state)))
     x_st[:, 0:len(sys1.state)] = np.matlib.repmat(init_cond1, num_var, 1)
     y_st[:, 0:len(sys1.state)] = np.matlib.repmat(init_cond2, num_var, 1)
-    # Simulate system and store results
+    # Simulate system and store results using Monte Carlo sampling, data is generated from check_struct method
     for i in range(inp_traj1.shape[1]):
         X = np.hstack((x_st[:, i*len(sys1.state):i*len(sys1.state)
                             + len(sys1.state)],
@@ -86,6 +98,7 @@ def predict_mmd(GPs, sys1, test_infl_of, test_infl_on, init_cond1,
                        np.matlib.repmat(inp_traj2[:, i],
                                         num_var*num_exp, 1)))
         for idx, GP in enumerate(GPs):
+            # remove data for given testing variable
             X_tmp = np.delete(X, GP.indep_var, 1)
             Y_tmp = np.delete(Y, GP.indep_var, 1)
             x_st[:, (i+1)*len(sys1.state) + idx] = (
@@ -100,6 +113,7 @@ def predict_mmd(GPs, sys1, test_infl_of, test_infl_on, init_cond1,
     mmd = np.zeros((num_var, len(test_infl_on)))
     for idx, i in enumerate(test_infl_on):
         if i == test_infl_of:
+            # remove initial conditions for testing
             for j in range(num_exp):
                 x_st[j*num_var:(j+1)*num_var, i::len(sys1.state)] -= (
                     init_cond1[j, i])
@@ -115,7 +129,7 @@ def predict_mmd(GPs, sys1, test_infl_of, test_infl_on, init_cond1,
     return mmd_mean, mmd_std
 
 
-# Get actual MMD
+# Get actual MMD, LHS of eq. (9), conduct two experiment, and compute MMD for the two results
 def real_mmd(sys, test_infl_of, test_infl_on, init_cond1, inp_traj1,
              init_cond2=0, inp_traj2=0, num_exp=1):
     sys1 = sys
@@ -157,26 +171,41 @@ def real_mmd(sys, test_infl_of, test_infl_on, init_cond1, inp_traj1,
 # Get the causal structure of the system
 def check_struct(GPs, sys1, sys2, id_data, test_infl_of, test_infl_on,
                  rng, nu=10, init_cond_std=1e-2, num_exp=10, num_var=50):
+    """
+        GPs: trained GP model
+        sys1: multi-tank system
+        sys2: multi-tank system
+        id_data: initial training data
+        test_infl_of: int, index of state variable + input variable
+        test_infl_on: list of index of state variable in tank.state
+        nu: factor for std of MMD(data_I, data_II, f_non_causal_model)
+        num_exp: number of experiments/testing
+    """
     init_cond1 = np.zeros((num_exp, len(sys1.state)))
     init_cond2 = np.zeros_like(init_cond1)
+    # I think the following line can be removed?
     GPs_test = GPs
     num_gps = list(np.linspace(0, len(sys1.state)-1, len(sys1.state)))
     num_gps = [int(x) for x in num_gps]
     # Estimate GPs with parallel computing
+    # independent variable (test_infl_of)
     GPs_test = [GPmodel(sys1, gp, id_data, [test_infl_of]) for gp in num_gps]
     for i in range(len(sys1.state)):
         if i != test_infl_of:
+            # perturb initial conditions, two seperate generations
             init_cond1[:, i] = rng.normal(np.mean([GPs[i].min_val,
                                           GPs[i].max_val]), 1e-2, num_exp)
             init_cond2[:, i] = rng.normal(np.mean([GPs[i].min_val,
                                           GPs[i].max_val]), 1e-2, num_exp)
         else:
+            # for same variable, generate initial conditions far away from each others
             init_cond1[:, i] = rng.normal(GPs[i].min_val + nu*init_cond_std,
                                           init_cond_std, num_exp)
             init_cond2[:, i] = rng.normal(GPs[i].max_val - nu*init_cond_std,
                                           init_cond_std, num_exp)
     T = 100
     if test_infl_of < len(sys1.state):
+        # generate input trajectories
         inp_traj = rng.uniform(sys1.inp_bound[0, :],
                                sys1.inp_bound[1, :], (T, sys1.inp_dim))
     else:
@@ -184,14 +213,17 @@ def check_struct(GPs, sys1, sys2, id_data, test_infl_of, test_infl_on,
         inp_traj = rng.uniform(sys1.inp_bound[0, :],
                                sys1.inp_bound[1, :], (T, sys1.inp_dim))
         inp_traj2 = copy.deepcopy(inp_traj)
+        # set input trajectories far away from each other if they are input variables
         inp_traj[:, test_inp] = sys1.inp_bound[0, test_inp]
         inp_traj2[:, test_inp] = sys1.inp_bound[1, test_inp]
     if test_infl_of < len(sys1.state):
+        # RHS of eq. (9)
         e_mmd, std_mmd = predict_mmd(GPs_test, sys1, test_infl_of,
                                      test_infl_on, init_cond1,
                                      inp_traj.T, rng,
                                      init_cond2=init_cond2,
                                      num_exp=num_exp, num_var=num_var)
+        # LHS of eq. (9)
         exp_mmd = real_mmd(sys2, test_infl_of, test_infl_on,
                            init_cond1, inp_traj.T,
                            init_cond2=init_cond2,
@@ -226,11 +258,14 @@ if __name__ == '__main__':
     rng = np.random.default_rng(987654)
     sys1 = create_multi_tank_system(rng)
     sys2 = create_multi_tank_system(rng)
+    # sample inputs and collect system states [x_st, u.T]
     data = sys_id_data(sys1, rng)
     num_gps = list(np.linspace(0, len(sys1.state)-1, len(sys1.state)))
     num_gps = [int(x) for x in num_gps]
+    # fit the GP model using sampled data
     GPs = [GPmodel(sys1, gp, data, []) for gp in num_gps]
     model_arr = []
+    # retrieve the trained GP model
     for i in range(len(sys1.state)):
         model_arr = np.append(model_arr, GPs[i].model)
     num_tests = len(sys1.state) + sys1.inp_dim

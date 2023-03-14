@@ -45,6 +45,12 @@ class synthetic_example:
 class tank_system:
 
     def __init__(self, inp_dim=1, x1=15, x2=0, A=50, a=0.2, connect=0):
+        """
+            state variable (water level of tank): x1, x2
+            x1: the water level for this tank, while the x2 represents the water level for the connected tank
+            input variabel (the flow rate of pump): u
+            connect: tank_system object
+        """
         self.x1, self.x2, self.A, self.a = x1, x2, A, a
         self.state = np.vstack((self.x1, self.x2))
         self.dt = 0.1
