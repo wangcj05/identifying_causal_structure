@@ -36,8 +36,8 @@ class GPmodel:
             self.model = model
         else:
             self.model = self.ident_GP_model(T)
-        self.min_val = np.min(data[0][num_out, :])
-        self.max_val = np.max(data[0][num_out, :])
+        self.min_val = np.min(id_data[0][num_out, :])
+        self.max_val = np.max(id_data[0][num_out, :])
 
     def ident_GP_model(self, T):
         input_dim = len(self.sys.state) + self.sys.inp_dim
@@ -157,12 +157,14 @@ def real_mmd(sys, test_infl_of, test_infl_on, init_cond1, inp_traj1,
             x_mult = copy.deepcopy(x_st)
             y_mult = copy.deepcopy(y_st)
     mmd = np.zeros(len(test_infl_on))
+    # update lenT, originally using inp_traj1.shape[1] instead
+    lenT = inp_traj1.shape[1] + 1
     for idx, i in enumerate(test_infl_on):
         if i == test_infl_of:
             for j in range(num_exp):
-                x_mult[i, j*inp_traj1.shape[1]:(j+1)*inp_traj1.shape[1]] -= (
+                x_mult[i, j*lenT:(j+1)*lenT] -= (
                     init_cond1[j, i])
-                y_mult[i, j*inp_traj1.shape[1]:(j+1)*inp_traj1.shape[1]] -= (
+                y_mult[i, j*lenT:(j+1)*lenT] -= (
                     init_cond2[j, i])
         mmd[idx] = mmd2(x_mult[i, :], y_mult[i, :])
     return mmd
