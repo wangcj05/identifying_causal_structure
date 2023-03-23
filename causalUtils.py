@@ -175,14 +175,10 @@ def predictMMDWithSurrogate(GPs, test_infl_of, test_infl_on, init_cond1,
             # remove data for given testing variable
             X_tmp = np.delete(X, GP.indep_var, 1)
             Y_tmp = np.delete(Y, GP.indep_var, 1)
-            x_st[:, (i+1)*dimState + idx] = (
-                x_st[:, i*dimState + idx]
-                + rng.normal(GP.model.predict(X_tmp)[0],
-                             (GP.model.predict(X_tmp)[1]))[:, 0])
-            y_st[:, (i+1)*dimState+idx] = (
-                y_st[:, i*dimState+idx]
-                + rng.normal(GP.model.predict(Y_tmp)[0],
-                             (GP.model.predict(Y_tmp)[1]))[:, 0])
+            X_pred = GP.model.predict(X_tmp)
+            Y_pred = GP.model.predict(Y_tmp)
+            x_st[:, (i+1)*dimState + idx] = x_st[:, i*dimState + idx] + rng.normal(X_pred[0],X_pred[1])[:, 0]
+            y_st[:, (i+1)*dimState+idx] =  y_st[:, i*dimState+idx] + rng.normal(Y_pred[0], Y_pred[1])[:, 0]
     # Calculate MMD
     mmd = np.zeros((num_var, len(test_infl_on)))
     for idx, i in enumerate(test_infl_on):

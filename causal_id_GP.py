@@ -47,12 +47,9 @@ def check_struct(GPs, sys, id_data, test_infl_of, test_infl_on,
     init_cond1, init_cond2, inp_traj, inp_traj2 = generateVariationData(initCondMax, initCondMin,inpMax, inpMin, test_infl_of, rng=rng, numExp=num_exp, T=100,
                           initCondStd=init_cond_std, nu=nu)
 
-    GPs_test = GPs
-    num_gps = list(np.linspace(0, dimState-1, dimState))
-    num_gps = [int(x) for x in num_gps]
     # Estimate GPs with parallel computing
     # independent variable (test_infl_of)
-    GPs_test = [GPmodel(gp, id_data, [test_infl_of]) for gp in num_gps]
+    GPs_test = [GPmodel(gp, id_data, [test_infl_of]) for gp in range(dimState)]
     # RHS of eq. (9)
     e_mmd, std_mmd = predictMMDWithSurrogate(GPs_test, test_infl_of,
                                     test_infl_on, init_cond1,
