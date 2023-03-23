@@ -1,8 +1,17 @@
-from causalUtils import mmd2, generateVariationData, computeMMD2ForGivenSystem, GPmodel, predictMMDWithSurrogate
+from causalUtils import generateVariationData, computeMMD2ForGivenSystem, GPmodel, predictMMDWithSurrogate
 from examples import mult_tank_system
 import numpy as np
-import GPy
-import copy
+
+
+def create_multi_tank_system(rng):
+    # Create quadruple tank system (4 tanks, 2 inputs)
+    num_tanks = 4
+    connections = np.array([[2], [3], [], []], dtype=object)
+    inp_dim = 2
+    inp_mapping = np.array([[0], [1], [1], [0]])
+    multi_tank = mult_tank_system(num_tanks, connections, inp_dim,
+                                  inp_mapping)
+    return multi_tank
 
 
 # Excite the system to get data for system identification
@@ -58,19 +67,8 @@ def check_struct(GPs, sys, id_data, test_infl_of, test_infl_on,
     # LHS of eq. (9)
     exp_mmd = computeMMD2ForGivenSystem(sys, test_infl_of, test_infl_on, init_cond1, inp_traj.T,
                     init_cond2, inp_traj2.T, num_exp)
-    return exp_mmd > e_mmd + nu*std_mmd
-
-
-def create_multi_tank_system(rng):
-    # Create quadruple tank system (4 tanks, 2 inputs)
-    num_tanks = 4
-    connections = np.array([[2], [3], [], []], dtype=object)
-    inp_dim = 2
-    inp_mapping = np.array([[0], [1], [1], [0]])
-    multi_tank = mult_tank_system(num_tanks, connections, inp_dim,
-                                  inp_mapping)
-    return multi_tank
-
+    testStat = exp_mmd > e_mmd + nu*std_mmd
+    return testStat, exp_mmd
 
 if __name__ == '__main__':
     rng = np.random.default_rng(987654)
@@ -85,10 +83,16 @@ if __name__ == '__main__':
     test_infl_of = [0, 2, 4, 6, 8, 9]
     test_infl_on = [0, 2, 4, 6]
     caus = np.zeros((len(test_infl_on), len(test_infl_of)))
+    mmd = np.zeros((len(test_infl_on), len(test_infl_of)))
 
     for idx1, el in enumerate(test_infl_of):
-        indep_el = check_struct(GPs, sys, data, el, test_infl_on, rng)
+        indep_el, exp_mmd = check_struct(GPs, sys, data, el, test_infl_on, rng)
         for idx2, ind in enumerate(indep_el):
             caus[idx2, idx1] = ind
+            if ind:
+                mmd[idx2, idx1] = exp_mmd[idx2]
         print("new causality matrix:")
         print(caus)
+        print("MMD effect:")
+        print(mmd)
+
