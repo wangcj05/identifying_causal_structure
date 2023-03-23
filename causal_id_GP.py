@@ -19,7 +19,7 @@ def sys_id_data(sys, rng, T=1000):
 
 
 # Get the causal structure of the system
-def check_struct(GPs, sys1, sys2, id_data, test_infl_of, test_infl_on,
+def check_struct(GPs, sys, id_data, test_infl_of, test_infl_on,
                  rng, nu=10, init_cond_std=1e-2, num_exp=10, num_var=50):
     """
         GPs: trained GP model
@@ -31,8 +31,8 @@ def check_struct(GPs, sys1, sys2, id_data, test_infl_of, test_infl_on,
         nu: factor for std of MMD(data_I, data_II, f_non_causal_model)
         num_exp: number of experiments/testing
     """
-    dimState = len(sys1.state)
-    dimInp = sys1.inp_dim
+    dimState = id_data[0].shape[0]
+    dimInp = id_data[1].shape[0]
     initCondMax = np.zeros(dimState)
     initCondMin = np.zeros(dimState)
     inpMax = np.zeros(dimInp)
@@ -41,8 +41,8 @@ def check_struct(GPs, sys1, sys2, id_data, test_infl_of, test_infl_on,
         initCondMax[i] = GPs[i].max_val
         initCondMin[i] = GPs[i].min_val
     for i in range(dimInp):
-        inpMax[i] = sys1.inp_bound[1, i]
-        inpMin[i] = sys1.inp_bound[0, i]
+        inpMax[i] = sys.inp_bound[1, i]
+        inpMin[i] = sys.inp_bound[0, i]
 
     init_cond1, init_cond2, inp_traj, inp_traj2 = generateVariationData(initCondMax, initCondMin,inpMax, inpMin, test_infl_of, rng=rng, numExp=num_exp, T=100,
                           initCondStd=init_cond_std, nu=nu)
@@ -59,7 +59,7 @@ def check_struct(GPs, sys1, sys2, id_data, test_infl_of, test_infl_on,
                                     inp_traj.T, init_cond2, inp_traj2.T, rng,
                                     num_exp=num_exp, num_var=num_var)
     # LHS of eq. (9)
-    exp_mmd = computeMMD2ForGivenSystem(sys2, test_infl_of, test_infl_on, init_cond1, inp_traj.T,
+    exp_mmd = computeMMD2ForGivenSystem(sys, test_infl_of, test_infl_on, init_cond1, inp_traj.T,
                     init_cond2, inp_traj2.T, num_exp)
     return exp_mmd > e_mmd + nu*std_mmd
 
@@ -77,25 +77,20 @@ def create_multi_tank_system(rng):
 
 if __name__ == '__main__':
     rng = np.random.default_rng(987654)
-    sys1 = create_multi_tank_system(rng)
-    sys2 = create_multi_tank_system(rng)
+    sys = create_multi_tank_system(rng)
     # sample inputs and collect system states [x_st, u.T]
-    data = sys_id_data(sys1, rng)
-    num_gps = list(np.linspace(0, len(sys1.state)-1, len(sys1.state)))
-    num_gps = [int(x) for x in num_gps]
+    data = sys_id_data(sys, rng)
+    dimState = data[0].shape[0]
+
     # fit the GP model using sampled data
-    GPs = [GPmodel(gp, data, []) for gp in num_gps]
-    model_arr = []
-    # retrieve the trained GP model
-    for i in range(len(sys1.state)):
-        model_arr = np.append(model_arr, GPs[i].model)
-    num_tests = len(sys1.state) + sys1.inp_dim
+    GPs = [GPmodel(gp, data, []) for gp in range(dimState)]
+
     test_infl_of = [0, 2, 4, 6, 8, 9]
     test_infl_on = [0, 2, 4, 6]
-
     caus = np.zeros((len(test_infl_on), len(test_infl_of)))
+
     for idx1, el in enumerate(test_infl_of):
-        indep_el = check_struct(GPs, sys1, sys2, data, el, test_infl_on, rng)
+        indep_el = check_struct(GPs, sys, data, el, test_infl_on, rng)
         for idx2, ind in enumerate(indep_el):
             caus[idx2, idx1] = ind
         print("new causality matrix:")
