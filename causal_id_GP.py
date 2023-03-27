@@ -1,6 +1,8 @@
 from causalUtils import generateVariationData, computeMMD2ForGivenSystem, GPmodel, predictMMDWithSurrogate
 from examples import mult_tank_system
 import numpy as np
+import networkx as nx
+import matplotlib.pyplot as plt
 
 
 def create_multi_tank_system(rng):
@@ -96,3 +98,24 @@ if __name__ == '__main__':
         print("MMD effect:")
         print(mmd)
 
+
+    causeVars = ['x1', 'x2', 'x3', 'x4', 'u1', 'u2']
+    effectVars = ['x1', 'x2', 'x3', 'x4']
+    edges = []
+    for i, cvars in enumerate(causeVars):
+        for j, evars in enumerate(effectVars):
+            if caus[j, i]:
+                edges.append([cvars, evars, {"weight":mmd[j, i]}])
+    g = nx.DiGraph()
+    g.add_edges_from(edges)
+    pos = nx.circular_layout(g)
+    # pos = nx.spring_layout(g)
+    weights = list(nx.get_edge_attributes(g, 'weight').values())
+    weights = np.asarray(weights) * 5
+    nx.draw_networkx(g, pos, node_color='r', edge_color="b", width=weights)
+
+    # add labels to graph
+    # labels = nx.get_edge_attributes(g, 'weight')
+    # nx.draw_networkx_edge_labels(g, pos, edge_labels=labels)
+    plt.axis("off")
+    plt.show()
