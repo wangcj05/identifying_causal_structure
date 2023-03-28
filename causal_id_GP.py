@@ -77,7 +77,7 @@ if __name__ == '__main__':
     rng = np.random.default_rng(987654)
     sys = create_multi_tank_system(rng)
     # sample inputs and collect system states [x_st, u.T]
-    numT = 300
+    numT = 400
     data = sys_id_data(sys, rng, T=numT)
     dimState = data[0].shape[0]
 
