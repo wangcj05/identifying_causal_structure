@@ -1,4 +1,5 @@
-from causalUtils import generateVariationData, computeMMD2ForGivenSystem, GPmodel, predictMMDWithSurrogate
+from causalUtils import generateVariationData, computeMMD2ForGivenSystem
+from causalUtils import predictMMDWithSurrogate, plotCausal, GPmodel
 from examples import mult_tank_system
 import numpy as np
 import networkx as nx
@@ -76,7 +77,8 @@ if __name__ == '__main__':
     rng = np.random.default_rng(987654)
     sys = create_multi_tank_system(rng)
     # sample inputs and collect system states [x_st, u.T]
-    data = sys_id_data(sys, rng)
+    numT = 300
+    data = sys_id_data(sys, rng, T=numT)
     dimState = data[0].shape[0]
 
     # fit the GP model using sampled data
@@ -101,21 +103,6 @@ if __name__ == '__main__':
 
     causeVars = ['x1', 'x2', 'x3', 'x4', 'u1', 'u2']
     effectVars = ['x1', 'x2', 'x3', 'x4']
-    edges = []
-    for i, cvars in enumerate(causeVars):
-        for j, evars in enumerate(effectVars):
-            if caus[j, i]:
-                edges.append([cvars, evars, {"weight":mmd[j, i]}])
-    g = nx.DiGraph()
-    g.add_edges_from(edges)
-    pos = nx.circular_layout(g)
-    # pos = nx.spring_layout(g)
-    weights = list(nx.get_edge_attributes(g, 'weight').values())
-    weights = np.asarray(weights) * 5
-    nx.draw_networkx(g, pos, node_color='r', edge_color="b", width=weights)
+    # plot causal relations
+    plotCausal(causeVars, effectVars, caus, mmd)
 
-    # add labels to graph
-    # labels = nx.get_edge_attributes(g, 'weight')
-    # nx.draw_networkx_edge_labels(g, pos, edge_labels=labels)
-    plt.axis("off")
-    plt.show()

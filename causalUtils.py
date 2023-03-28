@@ -4,6 +4,31 @@ import scipy
 from sklearn.metrics.pairwise import rbf_kernel as rbf
 import copy
 import GPy
+import networkx as nx
+import matplotlib.pyplot as plt
+
+# plot causal relation
+
+def plotCausal(causeVars, effectVars, causMatrix, mmdMatrix, nodeColor='r', edgeColor="b", scaleEdge = 5):
+  """
+  """
+  edges = []
+  for i, cvars in enumerate(causeVars):
+      for j, evars in enumerate(effectVars):
+          if causMatrix[j, i]:
+              edges.append([cvars, evars, {"weight":mmdMatrix[j, i]}])
+  g = nx.DiGraph()
+  g.add_edges_from(edges)
+  pos = nx.circular_layout(g)
+  # pos = nx.spring_layout(g)
+  weights = list(nx.get_edge_attributes(g, 'weight').values())
+  weights = np.asarray(weights) * scaleEdge
+  nx.draw_networkx(g, pos, node_color=nodeColor, edge_color=edgeColor, width=weights)
+  # add labels to graph
+  # labels = nx.get_edge_attributes(g, 'weight')
+  # nx.draw_networkx_edge_labels(g, pos, edge_labels=labels)
+  plt.axis("off")
+  plt.show()
 
 # Calculate the maximum mean discrepancy
 def mmd2(x, y):
@@ -200,7 +225,7 @@ def predictMMDWithSurrogate(GPs, test_infl_of, test_infl_on, init_cond1,
 
 # Learn a GP model for the dynamical system
 class GPmodel:
-    def __init__(self, num_out, id_data, indep_var, T=1000, model=None):
+    def __init__(self, num_out, id_data, indep_var, model=None):
         """
 
           num_out: index for GP model, and the index for the state varialble that will be predicted by GP model
@@ -215,11 +240,11 @@ class GPmodel:
         if model is not None:
             self.model = model
         else:
-            self.model = self.ident_GP_model(T)
+            self.model = self.ident_GP_model()
         self.min_val = np.min(id_data[0][num_out, :])
         self.max_val = np.max(id_data[0][num_out, :])
 
-    def ident_GP_model(self, T):
+    def ident_GP_model(self):
         self.input_dim = self.id_data[0].shape[0] + self.id_data[1].shape[0]
         # Reduce input dimension in case of independent variables
         try:
