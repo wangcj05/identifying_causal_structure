@@ -21,6 +21,8 @@ def create_multi_tank_system(rng):
 def sys_id_data(sys, rng, T=1000):
     """
         Sample input 'u' and collect states x_st
+        u: T X inpDim
+        x_st: row: x1, x1_d, x2, x2_d, ..., xn, xn_d; collumn: T
     """
     u = rng.uniform(sys.inp_bound[0, :], sys.inp_bound[1, :], (T, sys.inp_dim))
     x_st = np.zeros((len(sys.state), T))
@@ -73,6 +75,20 @@ def check_struct(GPs, sys, id_data, test_infl_of, test_infl_on,
     testStat = exp_mmd > e_mmd + nu*std_mmd
     return testStat, exp_mmd
 
+def identifyCausal(GPs, sys, sysData, test_infl_of, test_infl_on, rng):
+    """
+        Method to identify causal relations
+    """
+    caus = np.zeros((len(test_infl_on), len(test_infl_of)))
+    mmd = np.zeros((len(test_infl_on), len(test_infl_of)))
+    for idx1, el in enumerate(test_infl_of):
+        indep_el, exp_mmd = check_struct(GPs, sys, sysData, el, test_infl_on, rng)
+        for idx2, ind in enumerate(indep_el):
+            caus[idx2, idx1] = ind
+            if ind:
+                mmd[idx2, idx1] = exp_mmd[idx2]
+    return caus, mmd
+
 if __name__ == '__main__':
     rng = np.random.default_rng(987654)
     sys = create_multi_tank_system(rng)
@@ -86,19 +102,13 @@ if __name__ == '__main__':
 
     test_infl_of = [0, 2, 4, 6, 8, 9]
     test_infl_on = [0, 2, 4, 6]
-    caus = np.zeros((len(test_infl_on), len(test_infl_of)))
-    mmd = np.zeros((len(test_infl_on), len(test_infl_of)))
 
-    for idx1, el in enumerate(test_infl_of):
-        indep_el, exp_mmd = check_struct(GPs, sys, data, el, test_infl_on, rng)
-        for idx2, ind in enumerate(indep_el):
-            caus[idx2, idx1] = ind
-            if ind:
-                mmd[idx2, idx1] = exp_mmd[idx2]
-        print("new causality matrix:")
-        print(caus)
-        print("MMD effect:")
-        print(mmd)
+    caus, mmd = identifyCausal(GPs, sys, data, test_infl_of, test_infl_on, rng)
+
+    print("new causality matrix:")
+    print(caus)
+    print("MMD effect:")
+    print(mmd)
 
 
     causeVars = ['x1', 'x2', 'x3', 'x4', 'u1', 'u2']
